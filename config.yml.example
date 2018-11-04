@@ -1,0 +1,7 @@
+entrys:
+  - name: "Testrule"
+    domain: "foobar.de"
+    routes:
+      - path: "/"
+        match: "(.*)"
+        target: "https://www.foobar.de$1"
