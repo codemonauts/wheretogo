@@ -1,7 +1,14 @@
 entrys:
-  - name: "Testrule"
-    domain: "foobar.de"
-    routes:
-      - path: "/"
-        match: "(.*)"
-        target: "https://www.foobar.de$1"
+  - name: "Foo"
+    domain: "foo.de"
+    type: "regex"
+    path: "/"
+    data:
+      match: "(.*)"
+      target: "https://www.foo.de$1"
+  - name: "Bar"
+    domain: "bar.de"
+    type: "webhook"
+    path: "/"
+    data:
+      endpoint: "http://localhost:8000/"
