@@ -1,12 +1,18 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"regexp"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/gorilla/mux"
 	"gopkg.in/yaml.v2"
 )
@@ -73,14 +79,56 @@ func loggingMiddleware(next http.Handler) http.Handler {
 }
 
 func main() {
-	dat, err := ioutil.ReadFile("config.yml")
-	check(err)
+	bucketNamePtr := flag.String("bucket-name", "", "Name of the S3 bucket holding the configuration")
+	bucketRegionPtr := flag.String("bucket-region", "eu-central-1", "Region of the S3 bucket")
+	flag.Parse()
+
+	if *bucketNamePtr == "" {
+		log.Println("-bucket-name is mising")
+		flag.PrintDefaults()
+		os.Exit(1)
+	}
+
+	tmpFile, err := ioutil.TempFile("", "config")
+	if err != nil {
+		log.Fatal("Couldn't create temp file: ", err)
+	}
+
+	defer os.Remove(tmpFile.Name())
+
+	sess, _ := session.NewSession(&aws.Config{
+		Region: aws.String(*bucketRegionPtr)},
+	)
+
+	downloader := s3manager.NewDownloader(sess)
+
+	_, err = downloader.Download(tmpFile,
+		&s3.GetObjectInput{
+			Bucket: aws.String(*bucketNamePtr),
+			Key:    aws.String("config.yml"),
+		})
+
+	if err != nil {
+		log.Fatalf("Unable to download configuration from S3: %s", err)
+	}
+
+	var configData []byte
+	configData, err = ioutil.ReadAll(tmpFile)
+	if err != nil {
+		log.Fatalf("Couldn't read downloaded config file: %s", err)
+	}
 	c := &Config{}
-	err = yaml.Unmarshal(dat, &c)
+	err = yaml.Unmarshal(configData, &c)
 	check(err)
+
+	fmt.Println(tmpFile.Name())
 
 	r := mux.NewRouter()
 	r.Use(loggingMiddleware)
+
+	if len(c.Entrys) == 0 {
+		log.Fatal("Config file doesn't contain any rules")
+	}
 
 	for _, e := range c.Entrys {
 		fmt.Printf("> Loading rule: %q\n", e.Name)
