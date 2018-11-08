@@ -3,44 +3,18 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"regexp"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/gorilla/mux"
-	"gopkg.in/yaml.v2"
 )
 
 func check(e error) {
 	if e != nil {
 		panic(e)
 	}
-}
-
-type RegexData struct {
-	Match  string `json:"match"`
-	Target string `json:"target"`
-}
-type WebhookData struct {
-	Endpoint string `json:"endpoint"`
-}
-
-type Entry struct {
-	Name   string            `json:"name"`
-	Domain string            `json:"domain"`
-	Type   string            `json:"type"`
-	Path   string            `json:"path"`
-	Data   map[string]string `json:"data"`
-}
-
-type Config struct {
-	Entrys []Entry `json:"entrys"`
 }
 
 func getRegExHandler(data map[string]string) func(w http.ResponseWriter, r *http.Request) {
@@ -89,57 +63,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	tmpFile, err := ioutil.TempFile("", "config")
-	if err != nil {
-		log.Fatal("Couldn't create temp file: ", err)
-	}
-
-	defer os.Remove(tmpFile.Name())
-
-	sess, _ := session.NewSession(&aws.Config{
-		Region: aws.String(*bucketRegionPtr)},
-	)
-
-	downloader := s3manager.NewDownloader(sess)
-
-	_, err = downloader.Download(tmpFile,
-		&s3.GetObjectInput{
-			Bucket: aws.String(*bucketNamePtr),
-			Key:    aws.String("config.yml"),
-		})
-
-	if err != nil {
-		log.Fatalf("Unable to download configuration from S3: %s", err)
-	}
-
-	var configData []byte
-	configData, err = ioutil.ReadAll(tmpFile)
-	if err != nil {
-		log.Fatalf("Couldn't read downloaded config file: %s", err)
-	}
-	c := &Config{}
-	err = yaml.Unmarshal(configData, &c)
-	check(err)
-
-	fmt.Println(tmpFile.Name())
-
-	r := mux.NewRouter()
-	r.Use(loggingMiddleware)
+	c := loadConfig(*bucketNamePtr, *bucketRegionPtr)
 
 	if len(c.Entrys) == 0 {
 		log.Fatal("Config file doesn't contain any rules")
 	}
 
-	for _, e := range c.Entrys {
-		fmt.Printf("> Loading rule: %q\n", e.Name)
-		s := r.Host(e.Domain).Subrouter()
-		switch e.Type {
-		case "regex":
-			s.PathPrefix(e.Path).HandlerFunc(getRegExHandler(e.Data)).Name(e.Name)
-		case "webhook":
-			s.PathPrefix(e.Path).HandlerFunc(getWebhookHandler(e.Data)).Name(e.Name)
-		}
-	}
+	r := buildRouter(c)
 
 	http.Handle("/", r)
 	panic(http.ListenAndServe(":9090", nil))
