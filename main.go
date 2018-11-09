@@ -3,12 +3,12 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"regexp"
 
 	"github.com/gorilla/mux"
+	log "github.com/sirupsen/logrus"
 )
 
 func check(e error) {
@@ -55,12 +55,21 @@ func loggingMiddleware(next http.Handler) http.Handler {
 func main() {
 	bucketNamePtr := flag.String("bucket-name", "", "Name of the S3 bucket holding the configuration")
 	bucketRegionPtr := flag.String("bucket-region", "eu-central-1", "Region of the S3 bucket")
+	logLevelPtr := flag.String("logging", "ERROR", "Define the log level")
 	flag.Parse()
 
 	if *bucketNamePtr == "" {
 		log.Println("-bucket-name is mising")
 		flag.PrintDefaults()
 		os.Exit(1)
+	}
+
+	level, err := log.ParseLevel(*logLevelPtr)
+	if err != nil {
+		log.Error("Defined invalid loglevel. Defaulting to ERROR")
+		log.SetLevel(log.ErrorLevel)
+	} else {
+		log.SetLevel(level)
 	}
 
 	c := loadConfig(*bucketNamePtr, *bucketRegionPtr)
@@ -70,6 +79,11 @@ func main() {
 	}
 
 	r := buildRouter(c)
+
+	err = updateTraefikConfig(c)
+	if err != nil {
+		log.Fatal("could not write config to consul: ", err)
+	}
 
 	http.Handle("/", r)
 	panic(http.ListenAndServe(":9090", nil))

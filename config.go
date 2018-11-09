@@ -2,13 +2,13 @@ package main
 
 import (
 	"io/ioutil"
-	"log"
 	"os"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	log "github.com/sirupsen/logrus"
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -38,6 +38,8 @@ func loadConfig(bucketName string, bucketRegion string) *Config {
 		log.Fatal("Couldn't create temp file: ", err)
 	}
 
+	log.Debug("Created tempfile %q for config file", tmpFile.Name())
+
 	defer os.Remove(tmpFile.Name())
 
 	sess, _ := session.NewSession(&aws.Config{
@@ -45,6 +47,8 @@ func loadConfig(bucketName string, bucketRegion string) *Config {
 	)
 
 	downloader := s3manager.NewDownloader(sess)
+
+	log.Info("Loading configfile from s3://%s/config.yml in %s", bucketName, bucketRegion)
 
 	_, err = downloader.Download(tmpFile,
 		&s3.GetObjectInput{
