@@ -46,10 +46,18 @@ jobs:
     runs-on: ubuntu-latest
     needs: test
     steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
       - name: Get binary from build job
         uses: actions/download-artifact@v2
         with:
           name: binary
+
+      - name: Build deployment artifact
+        run: zip -r package.zip scripts/ wheretogo appspec.yml
 
       - name: AWS CodeDeploy
         uses: sourcetoad/aws-codedeploy-action@v1
@@ -59,6 +67,6 @@ jobs:
           aws_region: ${{ secrets.AWS_REGION }}
           codedeploy_name: wheretogo
           codedeploy_group: prod
-          directory: ./
+          archive: package.zip
           s3_bucket: codemonauts-codeship
           s3_folder: wheretogo
