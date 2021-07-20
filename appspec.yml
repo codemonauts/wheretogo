@@ -1,0 +1,23 @@
+version: 0.0
+
+os: linux
+
+files:
+  - source: wheretogo
+    destination: /usr/local/bin/wheretogo
+
+permissions:
+  - object: /usr/local/bin/wheretogo
+    owner: root
+    group: root
+    mode: "0755"
+
+hooks:
+  ApplicationStop:
+   - location: scripts/ApplicationStop.sh
+     timeout: 30
+     runas: root
+  ApplicationStart:
+    - location: scripts/ApplicationStart.sh
+      timeout: 30
+      runas: root
