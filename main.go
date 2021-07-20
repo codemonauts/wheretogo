@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
-	"os"
 	"regexp"
 
 	"github.com/gorilla/mux"
@@ -17,30 +16,13 @@ func check(e error) {
 	}
 }
 
-func getRegExHandler(data map[string]string) func(w http.ResponseWriter, r *http.Request) {
+func getRegExHandler(matcher string, target string) func(w http.ResponseWriter, r *http.Request) {
 	// Compile regexp to match path during start and save in a closure
-	re := regexp.MustCompile(data["match"])
+	re := regexp.MustCompile(matcher)
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		var destination = re.ReplaceAllString(r.URL.Path, data["target"])
-		http.Redirect(w, r, destination, 301)
-	}
-}
-
-func getWebhookHandler(data map[string]string) func(w http.ResponseWriter, r *http.Request) {
-
-	client := &http.Client{
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-
-	return func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println(data["endpoint"])
-		request, err := client.Get(data["endpoint"])
-		check(err)
-		destination, _ := request.Location()
-		http.Redirect(w, r, destination.String(), 301)
+		location := re.ReplaceAllString(r.URL.Path, target)
+		http.Redirect(w, r, location, http.StatusMovedPermanently)
 	}
 }
 
@@ -53,16 +35,13 @@ func loggingMiddleware(next http.Handler) http.Handler {
 }
 
 func main() {
+	withCaddyPtr := flag.Bool("with-caddy", false, "Automatically configure a Caddy server")
+	portPtr := flag.String("port", "9090", "Port to listen on")
 	bucketNamePtr := flag.String("bucket-name", "", "Name of the S3 bucket holding the configuration")
 	bucketRegionPtr := flag.String("bucket-region", "eu-central-1", "Region of the S3 bucket")
-	logLevelPtr := flag.String("logging", "ERROR", "Define the log level")
-	flag.Parse()
+	logLevelPtr := flag.String("logging", "WARN", "Define the log level")
 
-	if *bucketNamePtr == "" {
-		log.Println("-bucket-name is mising")
-		flag.PrintDefaults()
-		os.Exit(1)
-	}
+	flag.Parse()
 
 	level, err := log.ParseLevel(*logLevelPtr)
 	if err != nil {
@@ -72,19 +51,23 @@ func main() {
 		log.SetLevel(level)
 	}
 
-	c := loadConfig(*bucketNamePtr, *bucketRegionPtr)
+	var c *Config
+	if *bucketNamePtr != "" {
+		c = loadConfigFromS3(*bucketNamePtr, *bucketRegionPtr)
+	} else {
+		c = loadLocalConfig("config.yml")
+	}
 
-	if len(c.Entrys) == 0 {
+	if len(*c) == 0 {
 		log.Fatal("Config file doesn't contain any rules")
+	}
+
+	if *withCaddyPtr {
+		configureCaddy(c)
 	}
 
 	r := buildRouter(c)
 
-	err = updateTraefikConfig(c)
-	if err != nil {
-		log.Fatal("could not write config to consul: ", err)
-	}
-
-	http.Handle("/", r)
-	panic(http.ListenAndServe(":9090", nil))
+	log.Infof("Listening on :%s", *portPtr)
+	panic(http.ListenAndServe(fmt.Sprintf(":%s", *portPtr), r))
 }
