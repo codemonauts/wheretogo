@@ -40,7 +40,7 @@ jobs:
       - name: Staticcheck
         run: |
           go get -u honnef.co/go/tools/cmd/staticcheck
-          staticcheck ./...
+          $(go env GOPATH)/bin/staticcheck ./...
 
   publish:
     runs-on: ubuntu-latest
