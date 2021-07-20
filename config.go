@@ -12,33 +12,32 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
-type RegexData struct {
-	Match  string `json:"match"`
-	Target string `json:"target"`
-}
-type WebhookData struct {
-	Endpoint string `json:"endpoint"`
-}
-
-type Entry struct {
-	Name   string            `json:"name"`
-	Domain string            `json:"domain"`
-	Type   string            `json:"type"`
-	Path   string            `json:"path"`
-	Data   map[string]string `json:"data"`
+type DomainConfig struct {
+	Name       string `yaml:"name"`
+	PathPrefix string `yaml:"pathPrefix"`
+	Match      string `yaml:"match"`
+	Target     string `yaml:"target"`
 }
 
-type Config struct {
-	Entrys []Entry `json:"entrys"`
+type Config map[string][]DomainConfig
+
+func loadLocalConfig(filename string) *Config {
+	file, err := ioutil.ReadFile(filename)
+	if err != nil {
+		log.Fatal("Could open local config file: ", err)
+	}
+
+	c := &Config{}
+	err = yaml.Unmarshal(file, &c)
+	check(err)
+	return c
 }
 
-func loadConfig(bucketName string, bucketRegion string) *Config {
+func loadConfigFromS3(bucketName string, bucketRegion string) *Config {
 	tmpFile, err := ioutil.TempFile("", "config")
 	if err != nil {
 		log.Fatal("Couldn't create temp file: ", err)
 	}
-
-	log.Debug("Created tempfile %q for config file", tmpFile.Name())
 
 	defer os.Remove(tmpFile.Name())
 
@@ -48,7 +47,7 @@ func loadConfig(bucketName string, bucketRegion string) *Config {
 
 	downloader := s3manager.NewDownloader(sess)
 
-	log.Info("Loading configfile from s3://%s/config.yml in %s", bucketName, bucketRegion)
+	log.Infof("Loading configfile from s3://%s/config.yml in %s", bucketName, bucketRegion)
 
 	_, err = downloader.Download(tmpFile,
 		&s3.GetObjectInput{
