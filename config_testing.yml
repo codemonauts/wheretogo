@@ -1,0 +1,18 @@
+"a.example.com":
+  - name: "a_everything"
+    description: "Simple redirect without path"
+    target: "https://www.example.com"
+
+"b.example.com":
+  - name: "b_Moved-content"
+    description: "Moved content"
+    pathPrefix: "/images"
+    match: "/images/(.*)"
+    target: "https://blog.example.com/assets/$1"
+
+  - name: "b_fallback"
+    description: "Not all content is moved. /images rule above is more specific and wins"
+    pathPrefix: "/"
+    match: "(.*)"
+    target: "https://blog.example.com$1"
+
