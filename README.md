@@ -27,3 +27,37 @@ through to the instances and we then take care of SSL ourselfs. We do this by us
 a valid TLS certifiacte as soon as you configure a new domain (which this tool automatically makes when you start it
 with the `-with-cady` option). Clustering is also quite easy via a shared storage backend (We use EFS for our setup),
 so you can run multiple server and don't have problems with ACME validation or certifacte renewal.
+
+## Configuration
+```yaml
+"b.example.com":
+  - name: "b_Moved-content"
+    description: "Moved content"
+    pathPrefix: "/images"
+    match: "/images/(.*)"
+    target: "https://blog.example.com/assets/$1"
+```
+
+The keys of the config file are the domains on which the tool will listen and what will configured in Caddy. So make
+sure that these domains point to your server or otherwise Caddy won't be able to request a TLS certificate for them.
+
+The value for the domainnames is a list of config blocks, where each entry represents one rule. The following keys are
+available in this block (Bold = Required):
+
+* **name**
+  The unique name of this rule. This will be used in the log output when activating debug logging
+
+* description
+  This is just for the user to document the configuration file and not used in the code
+
+* pathPrefix (default: `/`)
+  The rule will only be triggered when the uri of the request matches this prefix. This is used to define a hierarchy
+  when defining multiple rules for a domain
+
+* match (default: `(.*)`)
+  This must be a valid regular expression and is used on the uri of the request to define the location for the
+  redirect. Capture groups can be defined and used in the target value
+
+* **target**
+  This will be used as the *Location* field of the redirect. You can use the capture groups you defined in the `match`
+  section.
