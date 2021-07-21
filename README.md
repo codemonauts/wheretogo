@@ -61,3 +61,5 @@ available in this block (Bold = Required):
 * **target**
   This will be used as the *Location* field of the redirect. You can use the capture groups you defined in the `match`
   section.
+
+See the `config_testing.yml` for more example rules.

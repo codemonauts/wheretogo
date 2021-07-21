@@ -1,8 +1,0 @@
-entrys:
-  - name: "Foo"
-    domain: "foo.de"
-    type: "regex"
-    pathPrefix: "/"
-    data:
-      match: "(.*)"
-      target: "https://www.foo.de$1"
